@@ -11804,98 +11804,6 @@ var cm6 = (function (exports) {
        return new RectangleMarker(primary ? "cm-cursor cm-cursor-primary" : "cm-cursor cm-cursor-secondary", pos.left - base.left, pos.top - base.top, -1, pos.bottom - pos.top);
    }
 
-   const setDropCursorPos = /*@__PURE__*/StateEffect.define({
-       map(pos, mapping) { return pos == null ? null : mapping.mapPos(pos); }
-   });
-   const dropCursorPos = /*@__PURE__*/StateField.define({
-       create() { return null; },
-       update(pos, tr) {
-           if (pos != null)
-               pos = tr.changes.mapPos(pos);
-           return tr.effects.reduce((pos, e) => e.is(setDropCursorPos) ? e.value : pos, pos);
-       }
-   });
-   const drawDropCursor = /*@__PURE__*/ViewPlugin.fromClass(class {
-       constructor(view) {
-           this.view = view;
-           this.cursor = null;
-           this.measureReq = { read: this.readPos.bind(this), write: this.drawCursor.bind(this) };
-       }
-       update(update) {
-           var _a;
-           let cursorPos = update.state.field(dropCursorPos);
-           if (cursorPos == null) {
-               if (this.cursor != null) {
-                   (_a = this.cursor) === null || _a === void 0 ? void 0 : _a.remove();
-                   this.cursor = null;
-               }
-           }
-           else {
-               if (!this.cursor) {
-                   this.cursor = this.view.scrollDOM.appendChild(document.createElement("div"));
-                   this.cursor.className = "cm-dropCursor";
-               }
-               if (update.startState.field(dropCursorPos) != cursorPos || update.docChanged || update.geometryChanged)
-                   this.view.requestMeasure(this.measureReq);
-           }
-       }
-       readPos() {
-           let pos = this.view.state.field(dropCursorPos);
-           let rect = pos != null && this.view.coordsAtPos(pos);
-           if (!rect)
-               return null;
-           let outer = this.view.scrollDOM.getBoundingClientRect();
-           return {
-               left: rect.left - outer.left + this.view.scrollDOM.scrollLeft,
-               top: rect.top - outer.top + this.view.scrollDOM.scrollTop,
-               height: rect.bottom - rect.top
-           };
-       }
-       drawCursor(pos) {
-           if (this.cursor) {
-               if (pos) {
-                   this.cursor.style.left = pos.left + "px";
-                   this.cursor.style.top = pos.top + "px";
-                   this.cursor.style.height = pos.height + "px";
-               }
-               else {
-                   this.cursor.style.left = "-100000px";
-               }
-           }
-       }
-       destroy() {
-           if (this.cursor)
-               this.cursor.remove();
-       }
-       setDropPos(pos) {
-           if (this.view.state.field(dropCursorPos) != pos)
-               this.view.dispatch({ effects: setDropCursorPos.of(pos) });
-       }
-   }, {
-       eventHandlers: {
-           dragover(event) {
-               this.setDropPos(this.view.posAtCoords({ x: event.clientX, y: event.clientY }));
-           },
-           dragleave(event) {
-               if (event.target == this.view.contentDOM || !this.view.contentDOM.contains(event.relatedTarget))
-                   this.setDropPos(null);
-           },
-           dragend() {
-               this.setDropPos(null);
-           },
-           drop() {
-               this.setDropPos(null);
-           }
-       }
-   });
-   /**
-   Draws a cursor at the current drop position when something is
-   dragged over the editor.
-   */
-   function dropCursor() {
-       return [dropCursorPos, drawDropCursor];
-   }
-
    function iterMatches(doc, re, from, to, f) {
        re.lastIndex = 0;
        for (let cursor = doc.iterRange(from, to), pos = from, m; !cursor.next().done; pos += cursor.value.length) {
@@ -22318,18 +22226,6 @@ var cm6 = (function (exports) {
        return crelt("ul", { class: "cm-tooltip-lint" }, diagnostics.map(d => renderDiagnostic(view, d, false)));
    }
    /**
-   Command to open and focus the lint panel.
-   */
-   const openLintPanel = (view) => {
-       let field = view.state.field(lintState, false);
-       if (!field || !field.panel)
-           view.dispatch({ effects: maybeEnableLint(view.state, [togglePanel.of(true)]) });
-       let panel = getPanel(view, LintPanel.open);
-       if (panel)
-           panel.dom.querySelector(".cm-panel-lint ul").focus();
-       return true;
-   };
-   /**
    Command to close the lint panel, when open.
    */
    const closeLintPanel = (view) => {
@@ -22339,32 +22235,6 @@ var cm6 = (function (exports) {
        view.dispatch({ effects: togglePanel.of(false) });
        return true;
    };
-   /**
-   Move the selection to the next diagnostic.
-   */
-   const nextDiagnostic = (view) => {
-       let field = view.state.field(lintState, false);
-       if (!field)
-           return false;
-       let sel = view.state.selection.main, next = field.diagnostics.iter(sel.to + 1);
-       if (!next.value) {
-           next = field.diagnostics.iter(0);
-           if (!next.value || next.from == sel.from && next.to == sel.to)
-               return false;
-       }
-       view.dispatch({ selection: { anchor: next.from, head: next.to }, scrollIntoView: true });
-       return true;
-   };
-   /**
-   A set of default key bindings for the lint functionality.
-
-   - Ctrl-Shift-m (Cmd-Shift-m on macOS): [`openLintPanel`](https://codemirror.net/6/docs/ref/#lint.openLintPanel)
-   - F8: [`nextDiagnostic`](https://codemirror.net/6/docs/ref/#lint.nextDiagnostic)
-   */
-   const lintKeymap = [
-       { key: "Mod-Shift-m", run: openLintPanel, preventDefault: true },
-       { key: "F8", run: nextDiagnostic }
-   ];
    const lintPlugin = /*@__PURE__*/ViewPlugin.fromClass(class {
        constructor(view) {
            this.view = view;
@@ -22922,74 +22792,6 @@ var cm6 = (function (exports) {
    function lintGutter(config = {}) {
        return [lintGutterConfig.of(config), lintGutterMarkers, lintGutterExtension, lintGutterTheme, lintGutterTooltip];
    }
-
-   // (The superfluous function calls around the list of extensions work
-   // around current limitations in tree-shaking software.)
-   /**
-   This is an extension value that just pulls together a number of
-   extensions that you might want in a basic editor. It is meant as a
-   convenient helper to quickly set up CodeMirror without installing
-   and importing a lot of separate packages.
-
-   Specifically, it includes...
-
-    - [the default command bindings](https://codemirror.net/6/docs/ref/#commands.defaultKeymap)
-    - [line numbers](https://codemirror.net/6/docs/ref/#view.lineNumbers)
-    - [special character highlighting](https://codemirror.net/6/docs/ref/#view.highlightSpecialChars)
-    - [the undo history](https://codemirror.net/6/docs/ref/#commands.history)
-    - [a fold gutter](https://codemirror.net/6/docs/ref/#language.foldGutter)
-    - [custom selection drawing](https://codemirror.net/6/docs/ref/#view.drawSelection)
-    - [drop cursor](https://codemirror.net/6/docs/ref/#view.dropCursor)
-    - [multiple selections](https://codemirror.net/6/docs/ref/#state.EditorState^allowMultipleSelections)
-    - [reindentation on input](https://codemirror.net/6/docs/ref/#language.indentOnInput)
-    - [the default highlight style](https://codemirror.net/6/docs/ref/#language.defaultHighlightStyle) (as fallback)
-    - [bracket matching](https://codemirror.net/6/docs/ref/#language.bracketMatching)
-    - [bracket closing](https://codemirror.net/6/docs/ref/#autocomplete.closeBrackets)
-    - [autocompletion](https://codemirror.net/6/docs/ref/#autocomplete.autocompletion)
-    - [rectangular selection](https://codemirror.net/6/docs/ref/#view.rectangularSelection) and [crosshair cursor](https://codemirror.net/6/docs/ref/#view.crosshairCursor)
-    - [active line highlighting](https://codemirror.net/6/docs/ref/#view.highlightActiveLine)
-    - [active line gutter highlighting](https://codemirror.net/6/docs/ref/#view.highlightActiveLineGutter)
-    - [selection match highlighting](https://codemirror.net/6/docs/ref/#search.highlightSelectionMatches)
-    - [search](https://codemirror.net/6/docs/ref/#search.searchKeymap)
-    - [linting](https://codemirror.net/6/docs/ref/#lint.lintKeymap)
-
-   (You'll probably want to add some language package to your setup
-   too.)
-
-   This extension does not allow customization. The idea is that,
-   once you decide you want to configure your editor more precisely,
-   you take this package's source (which is just a bunch of imports
-   and an array literal), copy it into your own code, and adjust it
-   as desired.
-   */
-   const basicSetup = /*@__PURE__*/(() => [
-       lineNumbers(),
-       highlightActiveLineGutter(),
-       highlightSpecialChars(),
-       history(),
-       foldGutter(),
-       drawSelection(),
-       dropCursor(),
-       EditorState.allowMultipleSelections.of(true),
-       indentOnInput(),
-       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-       bracketMatching(),
-       closeBrackets(),
-       autocompletion(),
-       rectangularSelection(),
-       crosshairCursor(),
-       highlightActiveLine(),
-       highlightSelectionMatches(),
-       keymap.of([
-           ...closeBracketsKeymap,
-           ...defaultKeymap,
-           ...searchKeymap,
-           ...historyKeymap,
-           ...foldKeymap,
-           ...completionKeymap,
-           ...lintKeymap
-       ])
-   ])();
 
    // Using https://github.com/one-dark/vscode-one-dark-theme/ as reference for the colors
    const chalky = "#e5c07b", coral = "#e06c75", cyan = "#56b6c2", invalid = "#ffffff", ivory = "#abb2bf", stone = "#7d8799", // Brightened compared to original to increase contrast
@@ -27108,8 +26910,8 @@ var cm6 = (function (exports) {
        lineNumbers(),
        highlightActiveLineGutter(),
        highlightSpecialChars(),
-       // history(),
-       // foldGutter(),
+       history(),
+       foldGutter(),
        drawSelection(),
        indentUnit.of("  "),
        EditorState.allowMultipleSelections.of(true),
@@ -27128,16 +26930,19 @@ var cm6 = (function (exports) {
          ...historyKeymap,
          ...foldKeymap,
          ...completionKeymap,
+         ...searchKeymap,
+         {
+             "Mod-f": openSearchPanel,
+             "Esc": closeSearchPanel,
+         },
        ]),
        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-       basicSetup,
        StreamLanguage.define(yaml),
        lintGutter(),
        yamlLinter,
-       foldingOnIndent
+       foldingOnIndent,
+       oneDark
      ];
-
-     if (options.oneDark) extensions.push(oneDark);
 
      return EditorState.create({
        doc: initialContents,

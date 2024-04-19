@@ -1,5 +1,5 @@
 import { EditorState } from "@codemirror/state";
-import { highlightSelectionMatches, openSearchPanel, searchKeymap } from "@codemirror/search";
+import { highlightSelectionMatches, openSearchPanel, closeSearchPanel, searchKeymap } from "@codemirror/search";
 import {
   indentWithTab,
   history,
@@ -132,16 +132,16 @@ function createEditorState(initialContents, options = {}) {
       ...searchKeymap,
       {
           "Mod-f": openSearchPanel,
+          "Esc": closeSearchPanel,
       },
     ]),
     syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
     StreamLanguage.define(yaml),
     lintGutter(),
     yamlLinter,
-    foldingOnIndent
+    foldingOnIndent,
+    oneDark
   ];
-
-  if (options.oneDark) extensions.push(oneDark);
 
   return EditorState.create({
     doc: initialContents,

@@ -17,6 +17,13 @@
             height: 100%;
             width: 100%;
         }
+        .cm-fullscreen {
+          position: fixed;
+          top: 0; left: 0; right: 0; bottom: 0;
+          height: auto;
+          z-index: 9;
+        }
+
     </style>
 </head>
 
@@ -36,6 +43,7 @@
         const view = cm6.createEditorView(undefined, document.getElementById("editor"));
         const initialState = cm6.createEditorState("key1: asdf\n  key22: sdfh\n");
         view.setState(initialState);
+        openSearchPanel(view);
         function changeTheme() {
             let options = {
                 oneDark: oneDarkEl.checked,
